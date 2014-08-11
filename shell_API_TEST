@@ -1,0 +1,76 @@
+#!/usr/bin/php -q
+<?php
+
+$return = exec('avahi-browse -arpt | grep "_hid._udp;local;Freebox-Player.local"');
+
+$return = explode(";", $return);
+$server_ip = $return[7];
+$server_port = intval($return[8]);
+
+// soit un chemin vers un socket de domaine Unix, si la famille de sockets vaut AF_UNIX.
+
+$message = '02010000bd980000d8aec240';
+
+
+echo "Tentative de connection [".$server_ip."] : ".$server_port."\n";
+
+if ($socket = socket_create(AF_INET, SOCK_DGRAM, 0)) 
+{
+	echo "Sock créé...\n";
+	//socket_bind ( $socket, $server_ip, $server_port );
+	socket_set_nonblock($socket);
+	
+	$error = NULL;
+	$attempts = 0;
+	$timeout = 1000;
+	$connected = FALSE;
+	$connected = socket_connect($socket, $server_ip, $server_port);
+	if (!$connected)
+	{
+		$error = socket_last_error();
+		if ($error != 10035 && $error != SOCKET_EINPROGRESS && $error != SOCKET_EALREADY) {
+			echo "Error Connecting Socket: ".socket_strerror($error) . "\n";
+			socket_close($socket);
+			exit();
+		}
+	}
+	echo "Connecté...\n";
+
+	socket_getsockname($socket, $addr, $port);
+	echo "Client connecté : [".$addr."]:".$port."\n";
+	
+	//$packet = chr(0) . chr(1) . $message . chr(0) . 'octet' . chr(0);
+	$packet=$message;
+	echo "Message :".$packet."\n";
+	
+	$envoi = socket_send ($socket , $packet , strlen($packet), 0 );
+	//$envoi = socket_sendto($socket, $packet , strlen($packet) , 0 , $server_ip , $server_port);
+	
+	echo "Len du message : ".strlen($packet)."\n";
+	
+	if ($envoi == -1)
+		die('Une erreur sur lenvoi du packet');
+	else if ($envoi != strlen($packet))
+		die($envoi . ' ont été envoyés pour ' . $len . ' bytes expédié');
+	echo 'Retour de socket_sendto : '.$envoi."\n";		
+	
+	echo "Message envoyé... \n";
+	
+	//if (!socket_set_block($socket)) die('Unable to set blocking mode for socket');
+	$buf = '';
+	$from = '';
+	$bytes_received = socket_recvfrom($socket, $buf, 65536, 0, $server_ip , $server_port);
+	if ($bytes_received == -1)
+			die('Erreur de reception du socket');
+	echo "Received ".$buf." from". $from."\n";
+
+	socket_close($socket);
+	
+} else 
+{
+	print("Le serveur ne peut créer de socket\n");
+}
+
+echo "\n\n";
+
+?>
